@@ -1,0 +1,138 @@
+---
+title: 'Homework 3: Logistic Regression in R'
+author: "Supratik Pochampally"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an R script that will run logistic regression on a data set of acceptance probabilities for Indian graduate school. The original data set was uploaded by Mohan S Archarya, and can be found at https://www.kaggle.com/mohansacharya/graduate-admissions.
+
+### Step 1
+
+```{r}
+# Load the data
+df <- read.csv("Admission_Predict.csv")
+# Take a look at the first few rows
+head(df)
+```
+
+### Step 2
+
+This data set is fairly unbalanced because out of the 400 total students in the data set, 365 have a Chance.of.Admit > 0.5. This means that we have a ratio of 91.25% Chance.of.Admit > 0.5 and 8.75% Chance.of.Admit < 0.5 ratio.
+
+```{r}
+# Make Research a factor
+df$Research <- factor(df$Research)
+# Get rid of the Serial No column
+df <- df[2:9]
+# Make a new column that is a binary factor based on if Chance.of.Admit > 0.5
+df$Admit <- factor(ifelse(df$Chance.of.Admit > 0.5, 1, 0))
+# Output column names
+names(df)
+# Output summary
+summary(df)
+```
+
+### Step 3
+
+The graphs below show that both high GRE scores and high TOEFL scores have a strong correlation with Admits, and that they are both good predictors.  
+
+```{r, warning=FALSE}
+# Create side by side graphs
+par(mfrow=c(1, 2))
+# GRE vs. Admit
+plot(df$Admit, df$GRE.Score, main="GRE Score vs. Admit", xlab="Admit", ylab="GRE Score")
+plot(df$Admit, df$TOEFL.Score, main="TOEFL Score vs. Admit", xlab="Admit", ylab="TOEFL Score")
+```
+
+### Step 4
+
+```{r}
+# Use seed to guarantee same split every run
+set.seed(1234)
+# Divide into train/test data
+i <- sample(1:nrow(df), 0.75*nrow(df), replace=FALSE)
+train <- df[i, ]
+test <- df[-i, ]
+```
+
+### Step 5
+
+The following warnings occurred:
+
+Warning: glm.fit: algorithm did not converge
+
+Warning: glm.fit: fitted probabilities numerically 0 or 1 occurred
+
+This occurred because the Admit was used as a predictor. Because this predictor holds the probability of admission rather than the classification of 0 or 1 for not admitted vs. admitted, the model failed to converge. 
+
+
+```{r}
+# Build a model predicting Admit from all predictors
+glm0 <- glm(Admit~., data=train, family=binomial)
+```
+
+### Step 6
+
+```{r}
+# Build a model predicting Admit from all predictors excluding Chance.of.Admit
+glm1 <- glm(Admit~.-Chance.of.Admit, data=train, family=binomial)
+```
+
+### Step 7
+
+Looking at some of the probabilities and test predictions, we can conclude that the model was able to differentiate between low probabilities (44% and 8%) and higher probabilities.
+
+The correlation value between the predicted probabilities and Chance.of.Admit is 0.648545, which indicates a neither low nor high correlation, but is slightly positive. This means that we are unsure about the correlation between the predictions and the Chance.of.Admit probabilities.  
+
+```{r}
+# Calculate the probabilities and display a few 
+probs <- predict(glm1, newdata=test, type="response")
+# Display few probabilities and test probs
+tail(df$Chance.of.Admit, n=10)
+tail(probs, n=10)
+# Calculate the correlation between the predicted probabilities and Chance.of.Admit
+cor(probs, test$Chance.of.Admit)
+```
+
+### Step 8
+```{r}
+# Calculate the predicted probabilities and display a few
+pred <- ifelse(probs > 0.5, 1, 0)
+# Make binary predictions and output a table
+table(pred, test$Admit)
+# Calculate and output the accuracy
+acc1 <- mean(pred==test$Admit)
+print(paste("glm1 accuracy = ", acc1))
+```
+
+### Step 9
+```{r}
+# Include the library ROCR
+library(ROCR)
+# Calculate the predictions for the ROCR graph
+p <- predict(glm1, newdata=test, type="response")
+pr <- prediction(p, test$Admit)
+# Use the TPR measure for sensitivity and FPR measure for specificity
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+# Plot the ROCR graph
+plot(prf)
+# Calculate and print the AUC based on performance
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+print(paste("glm1 auc = ", auc))
+```
+
+### Step 10
+
+Both of the graphs show that both Admit and Research have an impact on the statement of purpose of each student.  
+
+```{r}
+# Create side by side graphs
+par(mfrow=c(1, 2))
+# SOP vs. Admit
+plot(df$Admit, df$SOP, main="SOP vs. Admit", xlab="Admit", ylab="SOP")
+# SOP vs. Research
+plot(df$Research, df$SOP, main="SOP vs. Research", xlab="Research", ylab="SOP")
+```
